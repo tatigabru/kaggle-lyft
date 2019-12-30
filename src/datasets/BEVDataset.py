@@ -14,7 +14,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.utils.data
 import sys
-sys.path.append('C:/Users/New/Documents/Challenges/lyft/progs/')
+sys.path.append('/home/user/challenges/lyft/lyft_repo/src')
 
 from lyft_dataset_sdk.lyftdataset import LyftDataset
 from lyft_dataset_sdk.utils.data_classes import LidarPointCloud, Box, Quaternion
@@ -28,13 +28,14 @@ from transforms import (albu_show_transforms,
 class BEVImageDataset(torch.utils.data.Dataset):
     """
     Bird-eye-view dataset
-    
-        :param fold: integer, number of the fold
-        :param df: Dataframe with sample tokens
-        :param debug: if True, runs the debugging on few images
-        :param img_size: the desired image size to resize to        
-        :param input_dir: directory with imputs and targets (and maps, optionally)
-        :param if_map: if True, maps are added   
+
+    Args:
+        fold: integer, number of the fold
+        df: Dataframe with sample tokens
+        debug: if True, runs the debugging on few images
+        img_size: the desired image size to resize to        
+        input_dir: directory with imputs and targets (and maps, optionally)
+        transforms: augmentations (albumentations composed list))  
         """        
     def __init__(self, fold: int, df: pd.DataFrame, 
                  debug: bool, img_size: int, 
@@ -84,13 +85,17 @@ class BEVImageDataset(torch.utils.data.Dataset):
 
 class BEVLabelsDataset(torch.utils.data.Dataset):
     """
-    Bird-eye-view dataset
-        :param df: Dataframe with sample tokens
-        :param debug: if True, runs the debugging on few images
-        :param img_size: the desired image size to resize to        
-        :param input_dir: directory with imputs and targets (and maps, optionally)
-        :param if_map: if True, maps are added   
-        """        
+    Bird-eye-view dataset with labels 
+    for two headed models
+
+    Args:
+        df: Dataframe with sample tokens
+        debug: if True, runs the debugging on few images
+        img_size: the desired image size to resize to        
+        input_dir: directory with imputs and targets (and maps, optionally)
+        num_classes: numbr of classes in classification head
+        transforms: augmentations (albumentations composed list))        
+    """        
     def __init__(self, df: pd.DataFrame, 
                  debug: bool, img_size: int, 
                  input_dir: str, 
@@ -149,13 +154,17 @@ class BEVLabelsDataset(torch.utils.data.Dataset):
 
 class BEVMapsDataset(torch.utils.data.Dataset):
     """
-    Bird-eye-view dataset  
-        :param df: Dataframe with sample tokens
-        :param debug: if True, runs the debugging on few images
-        :param img_size: the desired image size to resize to        
-        :param input_dir: directory with imputs and targets (and maps, optionally)
-        
-        """        
+    Bird-eye-view dataset with maps
+
+    Args:
+        df: Dataframe with sample tokens
+        debug: if True, runs the debugging on few images
+        img_size: the desired image size to resize to        
+        input_dir: directory with inputs and targets (and maps, optionally)
+        maps_dir: directory with input maps
+        num_classes: numbr of classes in classification head
+        transforms: augmentations (albumentations composed list))        
+    """        
     def __init__(self, df: pd.DataFrame, 
                  debug: bool, img_size: int, 
                  input_dir: str, maps_dir: str, 
@@ -223,12 +232,15 @@ TEST DATASETS
 
 class BEVTestDataset(torch.utils.data.Dataset):
     """
-    Bird-eye-view dataset         
-        :param sample_tokens: list with sample tokens
-        :param debug: if True, runs the debugging on few images
-        :param img_size: the desired image size to resize to        
-        :param input_dir: directory with imputs and targets (and maps, optionally)        
-        """        
+    Bird-eye-view dataset, test
+
+    Args:         
+        sample_tokens: list with sample tokens
+        debug: if True, runs the debugging on few images
+        img_size: the desired image size to resize to        
+        input_dir: directory with imputs and targets (and maps, optionally)        
+        transforms: augmentations (albumentations composed list))        
+    """        
     def __init__(self, sample_tokens: list, 
                  debug: bool, img_size: int, 
                  input_dir: str, transforms = None):
@@ -267,13 +279,17 @@ class BEVTestDataset(torch.utils.data.Dataset):
 
 class BEVMapsTestDataset(torch.utils.data.Dataset):
     """
-    Bird-eye-view dataset  
-        :param df: Dataframe with sample tokens
-        :param debug: if True, runs the debugging on few images
-        :param img_size: the desired image size to resize to        
-        :param input_dir: directory with imputs and targets (and maps, optionally)
-        
-        """        
+    Bird-eye-view dataset with maps, test data  
+
+    Args:
+        df: Dataframe with sample tokens
+        debug: if True, runs the debugging on few images
+        img_size: the desired image size to resize to        
+        input_dir: directory with inputs and targets (and maps, optionally)
+        maps_dir: directory with input maps
+        num_classes: numbr of classes in classification head
+        transforms: augmentations (albumentations composed list))        
+    """         
     def __init__(self, df: pd.DataFrame, 
                  debug: bool, img_size: int, 
                  input_dir: str, maps_dir: str, 
@@ -322,6 +338,7 @@ class BEVMapsTestDataset(torch.utils.data.Dataset):
 
 
 def visualize_lidar_of_sample(sample_token, axes_limit=80):
+    """Helper to visualize sample lidar data"""
     sample = level5data.get("sample", sample_token)
     sample_lidar_token = sample["data"]["LIDAR_TOP"]
     level5data.render_sample_data(sample_lidar_token, axes_limit=axes_limit)
@@ -342,7 +359,7 @@ def plot_img_target(im: torch.Tensor, target: torch.Tensor, sample_token = None,
 
 
 def test_dataset_augs(train_df, data_folder):
-    # dataset
+    """Helper to test data augmentations"""
     train_dataset = BEVImageDataset(fold=0, df=train_df, 
                                      debug=True, img_size=IMG_SIZE, 
                                      input_dir=data_folder, 
@@ -354,6 +371,7 @@ def test_dataset_augs(train_df, data_folder):
         
 
 def test_maps_dataset():
+    """Helper to test dataset with maps"""
     maps_folder = 'C:/Users/New/Documents/Challenges/lyft/input/maps/maps' 
     # dataset
     train_dataset = BEVMapsDataset(df=train_df, 
@@ -404,15 +422,8 @@ def main():
     target = target.numpy()
     for num in range(0, len(classes)+1):
         print(np.where(target == num))
-
-    
-    #test_dataset_augs(train_df, data_folder)
-       
-
-    # sanity check
-    #level5data = LyftDataset(data_path = '../input/', json_path=DATA_ROOT+'train_data', verbose=True)
-    #visualize_lidar_of_sample(sample_token)
-       
+  
+    test_dataset_augs(train_df, data_folder)
   
 
 if __name__ == '__main__':

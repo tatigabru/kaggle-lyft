@@ -2,19 +2,23 @@
 Make folds
 
 """
+import argparse
+import copy
 import json
-import os.path
 import math
+import os.path
+import sys
+from pathlib import Path
+sys.path.append('/home/user/challenges/lyft/lyft_repo/src')
+
 import cv2
 import numpy as np
 import pandas as pd
-from pathlib import Path
-import copy
-from pyquaternion import Quaternion
-import argparse
-from sklearn.model_selection import train_test_split, StratifiedKFold
+from sklearn.model_selection import StratifiedKFold, train_test_split
 
-DATA_ROOT = '../../input'
+from configs import DATA_ROOT
+from pyquaternion import Quaternion
+
 
 class Table:
     def __init__(self, data):
@@ -52,8 +56,9 @@ def get_scene_samples(scene: Table, sample: Table, if_save = False):
     return all_tokens    
 
 
-def make_split_by_car(df: pd.DataFrame, if_save = False):
-    """ train - validation split by cars (hosts) 
+def make_split_by_car(df: pd.DataFrame):
+    """
+    Make train - validation split by cars (hosts) 
 
     Args: 
         df = pd.DataFrame(columns=["host", "scene_name", "date", 
@@ -75,8 +80,9 @@ def make_split_by_car(df: pd.DataFrame, if_save = False):
     return train_df, validation_df
 
 
-def make_split_by_scene(df: pd.DataFrame, if_save = False):
-    """ train - validation split by scenes
+def make_split_by_scene(df: pd.DataFrame):
+    """ 
+    Make train - validation split by scenes
 
     Args: 
         df = pd.DataFrame(columns=["host", "scene_name", "date", 
@@ -103,12 +109,13 @@ def make_split_by_scene(df: pd.DataFrame, if_save = False):
 
 
 def split_by_scene_stratify_hosts(df: pd.DataFrame, if_save = False):
-    """ train - validation split by scenes, stratified by host
+    """ 
+    Make train - validation split by scenes, stratified by host
 
     Args: 
         df = pd.DataFrame(columns=["host", "scene_name", "date", 
                                 "scene_token", "first_sample_token"]) 
-        if_save: boolean weather to save dataframes                           
+        if_save: boolean flag weather to save the folds dataframes                           
     """
     df['folds'] = 0
     scene_tokens = df["scene_token"].values
@@ -143,9 +150,7 @@ def split_by_scene_stratify_hosts(df: pd.DataFrame, if_save = False):
     return df, train_df, validation_df
 
 
-
-if __name__ == '__main__':   
-
+def main():
     # get scenes and hosts
     df = pd.read_csv('host_scenes.csv')
     host_count_df = df.groupby("host")['scene_token'].count()
@@ -192,3 +197,8 @@ if __name__ == '__main__':
         val_samples['samples'] = val_tokens
         val_samples.to_csv(f'val_fold_{fold}.csv', index = False)   
 
+
+if __name__ == '__main__':   
+    main()
+
+    

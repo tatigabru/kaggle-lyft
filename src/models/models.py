@@ -125,10 +125,3 @@ def get_maskrcnn_model(num_classes=NUM_CLASSES):
 def print_model_summary(model):
     """Prints all layers and dims of the pytorch net"""    
     torchsummary.summary(model, (1, 512, 512))
-
-
-def main(): 
-    
-
-if __name__ == "__main__":
-    main()

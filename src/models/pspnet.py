@@ -13,7 +13,7 @@ __all__ = ['PSPNet', 'get_psp', 'get_psp_resnet50_voc', 'get_psp_resnet50_ade', 
 
 
 class PSPNet(SegBaseModel):
-    r"""Pyramid Scene Parsing Network
+    """Pyramid Scene Parsing Network
     Parameters
     ----------
     nclass : int
@@ -103,7 +103,7 @@ class _PSPHead(nn.Module):
 
 def get_psp(dataset='pascal_voc', backbone='resnet50', pretrained=False, root='~/.torch/models',
             pretrained_base=True, **kwargs):
-    r"""Pyramid Scene Parsing Network
+    """Pyramid Scene Parsing Network
     Parameters
     ----------
     dataset : str, default pascal_voc

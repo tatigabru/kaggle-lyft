@@ -1,18 +1,24 @@
-# This implementation was copied from https://github.com/jvanvugt/pytorch-unet, it is MIT licensed.
+"""
+
+This implementation was copied from https://github.com/jvanvugt/pytorch-unet, it is MIT licensed.
+
+"""
+import glob
+import os
 from datetime import datetime
 from functools import partial
-import glob
 from multiprocessing import Pool
-import os
-import pandas as pd
+
 import cv2
-from PIL import Image
 import numpy as np
-from tqdm import tqdm
+import pandas as pd
 import scipy
 import scipy.ndimage
 import scipy.special
+from PIL import Image
 from scipy.spatial.transform import Rotation as R
+from tqdm import tqdm
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F

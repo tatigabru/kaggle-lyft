@@ -391,11 +391,9 @@ def test_maps_dataset():
                                    
                                    
 
-def main():
-    
+def main():    
     classes = ["car", "motorcycle", "bus", "bicycle", "truck", "pedestrian", "other_vehicle", "animal", "emergency_vehicle"]
-    num_cls = len(classes)
-
+    
     # "bev" folders
     data_folder = os.path.join(OUTPUT_ROOT, "bev_data")
     input_filepaths = sorted(glob.glob(os.path.join(data_folder, "*_input.png")))

@@ -144,6 +144,7 @@ class BevDatasetAugs(torch.utils.data.Dataset):
 
 
 def car_to_voxel_coords(points, shape, voxel_size, z_offset=0):
+    """Helper, moves car to voxel coordinates"""
     if len(shape) != 3:
         raise Exception("Voxel volume shape should be 3 dimensions (x,y,z)")        
     if len(points.shape) != 2 or points.shape[0] not in [3, 4]:
@@ -313,7 +314,7 @@ def main():
     train_df = df[df['samples'].isin(sample_tokens)]
     print(train_df.head())
 
-    # dataset     
+    # test dataset     
     train_dataset = BevDatasetAugs(fold=0, df=train_df, 
                                     level5data = level5data,
                                     debug=True, 
@@ -331,7 +332,7 @@ def main():
         labels = target["labels"].numpy()    
         plot_image_mask(im, boxes, masks)
      
-    # plot insatance sample
+    # plot an instance sample
     ins_num = 0
     [xmin, ymin, xmax, ymax] = boxes[ins_num, :]
     mask = masks[ins_num, :, :]

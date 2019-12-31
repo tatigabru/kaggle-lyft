@@ -15,13 +15,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
          vim \
          ca-certificates \
          unzip \
-	     zip \
-	     locales \
-	     emacs \
-	     openssh-server \
-	     screen \	 	  
-	     libturbojpeg \
-	     rsync \
+	 zip \
+         locales \
+	 emacs \
+	 openssh-server \
+	 screen \	 	  
+	 libturbojpeg \
+	 rsync \
          tree \
          tmux \
          wget
@@ -34,7 +34,7 @@ RUN wget http://repo.continuum.io/archive/Anaconda3-4.0.0-Linux-x86_64.sh
 # Create a virtual environment
 RUN conda create -y -n env_name python=3.6
     conda activate env_name
-    conda install pytorch torchvision cudatoolkit=9.0 -c pytorch
+    conda install -y pytorch torchvision cudatoolkit=9.0 -c pytorch
 
 RUN pip install --upgrade pip
     pip install -r requirements.txt

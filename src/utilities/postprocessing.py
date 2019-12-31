@@ -1,7 +1,7 @@
 import numpy as np
 
 
-def post_process(probability, threshold, min_size):
+def post_process(probability, threshold, min_size: int):
     """
     Post processing of each predicted mask, components with lesser number of pixels
     than `min_size` are ignored

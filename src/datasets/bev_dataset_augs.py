@@ -1,27 +1,32 @@
 import collections
 import glob
 import os
+import sys
+sys.path.append('/home/user/challenges/lyft/lyft_repo/src')
 
-import albumentations as A
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import torch
-import torch.utils.data
 from PIL import Image, ImageFile
 from skimage.color import label2rgb
 from tqdm import tqdm
-#import sys
-#sys.path.append(PROJECT_ROOT)
 
+import albumentations as A
+import torch
+import torch.utils.data
+from configs import (BEV_SHAPE, DATA_ROOT, IMG_SIZE, NUM_CLASSES, OUTPUT_ROOT,
+                     PROJECT_ROOT)
+from datasets.transforms import (D4_transforms, augment_and_show,
+                                 train_transforms, valid_transforms,
+                                 visualize_bbox)
 from lyft_dataset_sdk.lyftdataset import LyftDataset
 from lyft_dataset_sdk.utils.data_classes import (Box, LidarPointCloud,
                                                  Quaternion)
 from lyft_dataset_sdk.utils.geometry_utils import transform_matrix, view_points
 
-from configs import BEV_SHAPE, DATA_ROOT, IMG_SIZE, NUM_CLASSES, OUTPUT_ROOT, PROJECT_ROOT
-from transforms import (train_transforms, D4_transforms, valid_transforms, augment_and_show, visualize_bbox)
+
+
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
@@ -30,12 +35,18 @@ class BevDatasetAugs(torch.utils.data.Dataset):
     """
     Bird-eye-view dataset amended for coco style
     
-        :param fold: integer, number of the fold
-        :param df: Dataframe with sample tokens
-        :param debug: if True, runs the debugging on few images
-        :param img_size: the desired image size to resize to        
-        :param input_dir: directory with imputs and targets (and maps, optionally)
-        :param if_map: if True, maps are added   
+    Args:
+        fold: integer, number of the fold
+        df: Dataframe with sample tokens
+        level5data: set oj json linked Tables
+        debug: if True, runs the debugging on few images
+        img_size: the desired image size to resize to        
+        input_dir: directory with imputs and targets (and maps, optionally)
+        transforms: list of albumentations
+        bev_shape: shape of the BEV image
+        voxel_size: voxelization paramenters
+        z_offset: offset along vertical axis during voxelization 
+        if_map: if True, maps are added   
         """    
     def __init__(self, fold: int, df: pd.DataFrame, 
                  level5data,
@@ -99,17 +110,6 @@ class BevDatasetAugs(torch.utils.data.Dataset):
 
         # augment image and targets
         if self.transforms is not None:
-            one_mask = np.zeros_like(masks[0])
-            for i, mask in enumerate(masks):
-                one_mask += (mask > 0).astype(np.uint8) * (i+1) 
-
-            augs = A.Compose(self.transforms)    
-            augmented = augs(image=im, mask=one_mask)  
-            im = augmented['image']
-            new_mask = augmented['mask']
-        
-        # augment image and targets
-        if self.transforms is not None:
             bbox_params={'format':'pascal_voc', 'min_area': 5, 'min_visibility': 0.5, 'label_fields': ['category_id']}
             augs = A.Compose(self.transforms, bbox_params=bbox_params, p=1)       
             augmented = augs(image=im, masks=masks, bboxes=boxes, category_id=labels)     
@@ -124,7 +124,6 @@ class BevDatasetAugs(torch.utils.data.Dataset):
         image_id = torch.tensor([idx])
         area = (boxes[:, 3] - boxes[:, 1]) * (boxes[:, 2] - boxes[:, 0])
         iscrowd = torch.zeros((len(boxes),), dtype=torch.int64)  
-
         im = im.astype(np.float32)         
         im = torch.from_numpy(im.transpose(2,0,1)) # C, H, W
 
@@ -202,6 +201,7 @@ def scale_boxes(boxes, factor):
     """
     for box in boxes:
         box.wlh = box.wlh * factor
+
 
 def coco_targets_from_boxes(sample_token, bev_shape, voxel_size, boxes, classes, z_offset=-2):
     """Helper to get COCO-style annoations from the SDK lyft data"""
@@ -300,8 +300,6 @@ def main():
     # BEV conversion parameters
     bev_shape = (768, 768, 3)
     voxel_size = (0.2, 0.2, 1.5)
-    z_offset = -2.0
-    box_scale = 0.8
     img_size = 768
 
     # "bev" folders
@@ -324,8 +322,7 @@ def main():
                                     transforms = train_transforms,                                    
                                     bev_shape = bev_shape,
                                     voxel_size = voxel_size, 
-                                    z_offset = z_offset)
-    
+                                    z_offset = z_offset)    
     for num in range(5):
         # get dataset sample and plot it
         im, target = train_dataset[9]          

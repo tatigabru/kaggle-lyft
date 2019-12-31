@@ -1,19 +1,20 @@
+import glob
+import os
+import pathlib
+import sys
+import time
 from datetime import datetime
 from functools import partial
-import glob
 from multiprocessing import Pool
-import pathlib
-# Disable multiprocesing for numpy/opencv. We already multiprocess ourselves, this would mean every subprocess produces
-# even more threads which would lead to a lot of context switching, slowing things down a lot.
-import os
 from pathlib import Path
-from datetime import datetime
-import time
-from lyft_dataset_sdk.lyftdataset import LyftDataset
-from lyft_dataset_sdk.utils.data_classes import LidarPointCloud, Box, Quaternion
-from lyft_dataset_sdk.utils.geometry_utils import view_points, transform_matrix
-from lyft_dataset_sdk.lyftdataset import LyftDataset,LyftDatasetExplorer
-from configs import DATA_ROOT, OUTPUT_ROOT, BEV_SHAPE
+
+from lyft_dataset_sdk.lyftdataset import LyftDataset, LyftDatasetExplorer
+from lyft_dataset_sdk.utils.data_classes import (Box, LidarPointCloud,
+                                                 Quaternion)
+from lyft_dataset_sdk.utils.geometry_utils import transform_matrix, view_points
+
+sys.path.append('/home/user/challenges/lyft/lyft_repo/src')
+from configs import BEV_SHAPE, DATA_ROOT, OUTPUT_ROOT
 
 
 class LyftTestDataset(LyftDataset):

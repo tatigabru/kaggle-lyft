@@ -1,3 +1,8 @@
+"""
+Adapted and modified from
+https://github.com/lyft/nuscenes-devkit/blob/master/lyft_dataset_sdk/lyftdataset.py
+"""
+
 import glob
 import os
 import pathlib

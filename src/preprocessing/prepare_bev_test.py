@@ -30,6 +30,7 @@ os.makedirs(OUTPUT_ROOT, exist_ok=True)
 
 
 def get_test_scenes(level5data, if_save = True):
+    """Helper, gets DataFrame with cars (hosts) and scenes"""
     records = [(level5data.get('sample', record['first_sample_token'])['timestamp'], record) for record in level5data.scene]
 
     entries = []
@@ -87,6 +88,7 @@ def test_transform_points():
 
 
 def car_to_voxel_coords(points, shape, voxel_size, z_offset=0):
+    """Helper, moves points from the host car to voxel coordinates"""
     if len(shape) != 3:
         raise Exception("Voxel volume shape should be 3 dimensions (x,y,z)")
         
@@ -99,7 +101,7 @@ def car_to_voxel_coords(points, shape, voxel_size, z_offset=0):
 
 
 def create_voxel_pointcloud(points, shape, voxel_size=(0.5,0.5,1), z_offset=0):
-
+    """Helper, creates voxel point cloud"""
     points_voxel_coords = car_to_voxel_coords(points.copy(), shape, voxel_size, z_offset)
     points_voxel_coords = points_voxel_coords[:3].transpose(1,0)
     points_voxel_coords = np.int0(points_voxel_coords)
@@ -163,21 +165,21 @@ def plot_bev(level5data, sample_token, size = 0.2, img_size = 768):
     return bev
 
 
+def crop_image(image: np.array,
+                x_px: int,
+                y_px: int,
+                axes_limit_px: int) -> np.array:
+    x_min = int(x_px - axes_limit_px)
+    x_max = int(x_px + axes_limit_px)
+    y_min = int(y_px - axes_limit_px)
+    y_max = int(y_px + axes_limit_px)
+
+    cropped_image = image[y_min:y_max, x_min:x_max]
+    return cropped_image
+
+
 def get_semantic_map_around_ego(map_mask, ego_pose, voxel_size=0.2, output_shape=(768, 768)):
-
-    def crop_image(image: np.array,
-                           x_px: int,
-                           y_px: int,
-                           axes_limit_px: int) -> np.array:
-                x_min = int(x_px - axes_limit_px)
-                x_max = int(x_px + axes_limit_px)
-                y_min = int(y_px - axes_limit_px)
-                y_max = int(y_px + axes_limit_px)
-
-                cropped_image = image[y_min:y_max, x_min:x_max]
-
-                return cropped_image
-
+   """Gets semantic map around ego vehicle, transfrom to voxil coordinates and then to match BEV shape"""
     pixel_coords = map_mask.to_pixel_coords(ego_pose['translation'][0], ego_pose['translation'][1])
 
     extent = voxel_size*output_shape[0]*0.5

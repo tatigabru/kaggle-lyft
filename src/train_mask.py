@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*-
 """
 An Instance segmentation model for Lyft Dataset
-In our case, we want to fine-tune from a pre-trained coco model on our dataset. 
-
-We will be using Mask R-CNN
+In our case, we want to fine-tune from a pre-trained on coco 
+Mask-RCNN model on our dataset. 
 
 """
 import argparse
@@ -16,46 +15,40 @@ import random
 import sys
 import time
 
-import albumentations as A
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from PIL import Image, ImageFile
+from skimage.color import label2rgb
+from sklearn.preprocessing import LabelEncoder
+from tqdm import tqdm
+
+import albumentations as A
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.utils.data
 import torchvision
-from tqdm import tqdm
-
+# my imports
+from coco_helpers.my_engine import evaluate, train_one_epoch
+from coco_helpers.utils import collate_fn
+from configs import (BEV_SHAPE, DATA_ROOT, IMG_SIZE, NUM_CLASSES, ON_SERVER,
+                     OUTPUT_ROOT, PROJECT_ROOT)
+from datasets.bev_dataset_coco import BevDatasetAugs
+from datasets.transforms import (D4_transforms, augment_and_show,
+                                 train_transforms, valid_transforms,
+                                 visualize_bbox)
 # lyft SDK imports
 from lyft_dataset_sdk.lyftdataset import LyftDataset
 from lyft_dataset_sdk.utils.data_classes import (Box, LidarPointCloud,
                                                  Quaternion)
 from lyft_dataset_sdk.utils.geometry_utils import transform_matrix, view_points
-from PIL import Image, ImageFile
-from skimage.color import label2rgb
-from sklearn.preprocessing import LabelEncoder
+from models.models import get_maskrcnn_model
 from torch.utils.data import DataLoader
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 from torchvision.models.detection.mask_rcnn import MaskRCNNPredictor
-
-# my imports
-from coco_helpers.my_engine import evaluate, train_one_epoch
-from coco_helpers.utils import collate_fn
-from configs import BEV_SHAPE, DATA_ROOT, IMG_SIZE, NUM_CLASSES, OUTPUT_ROOT, PROJECT_ROOT
-
-from datasets.bev_dataset_augs import BevDatasetAugs
-from models import get_maskrcnn_model
-from transforms import (D4_transforms, augment_and_show, train_transforms,
-                        valid_transforms, visualize_bbox)
-from utilities.my_utils import set_seed
-
-sys.path.append(PROJECT_ROOT)
-
-
-
-set_seed(seed=1234)
+from utilities.utils import set_seed
 
 NUM_CLASSES = NUM_CLASSES + 1 # + 1 for background
 SAVE_PATH = OUTPUT_ROOT + '/maskrcnn'
@@ -250,13 +243,27 @@ def predict(model, dataset_test):
 
 
 def main():
+    parser = argparse.ArgumentParser()                                
+    arg = parser.add_argument    
+    arg('--model_name', type=str, default='mask_512', help='String model name from models dictionary')
+    arg('--seed', type=int, default=1234, help='Random seed')
+    arg('--fold', type=int, default=0, help='Validation fold')
+    arg('--weights_dir', type=str, default='', help='Directory for loading model weights')
+    arg('--epochs', type=int, default=12, help='Current epoch')
+    arg('--lr', type=float, default=1e-3, help='Initial learning rate')
+    arg('--debug', type=bool, default=False, help='If the debugging mode')
+    args = parser.parse_args()      
+    set_seed(args.seed)
 
     # get data
-    #level5data = LyftDataset(data_path = '../input/', json_path='../input/train_data', verbose=True) # local laptop
-    level5data = LyftDataset(data_path = '.', json_path='../../input/train_data', verbose=True) # server
+    if ON_SERVER:
+        level5data = LyftDataset(data_path = '.', json_path='../../input/train_data', verbose=True) # server
+    else:
+        level5data = LyftDataset(data_path = '../input/', json_path='../input/train_data', verbose=True) # local laptop
+    
     classes = ["car", "motorcycle", "bus", "bicycle", "truck", "pedestrian", "other_vehicle", "animal", "emergency_vehicle"]
     
-    # "bev" folders
+    # "bev" folder
     data_folder = os.path.join(OUTPUT_ROOT, "bev_data")
 
     # choose model
@@ -266,8 +273,9 @@ def main():
 
     train(model, model_name='mask_512', data_folder=data_folder, 
           level5data = level5data, 
-          fold=3, debug=False, img_size=IMG_SIZE, bev_shape=BEV_SHAPE,
-          epochs=20, batch_size=16, num_workers=4, resume_weights='', resume_epoch=0)
+          fold=args.fold, debug=args.debug, img_size=IMG_SIZE, bev_shape=BEV_SHAPE,
+          epochs=args.epochs, batch_size=16, num_workers=4, 
+          learning_rate = args.lr, resume_weights=args.weights_dir, resume_epoch=0)
 
       
 if __name__ == '__main__':   

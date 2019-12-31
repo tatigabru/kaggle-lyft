@@ -337,7 +337,7 @@ class BEVMapsTestDataset(torch.utils.data.Dataset):
         return im, sample_token   
 
 
-def visualize_lidar_of_sample(sample_token, axes_limit=80):
+def visualize_lidar_of_sample(level5data, sample_token: str, axes_limit=80):
     """Helper to visualize sample lidar data"""
     sample = level5data.get("sample", sample_token)
     sample_lidar_token = sample["data"]["LIDAR_TOP"]
@@ -358,7 +358,7 @@ def plot_img_target(im: torch.Tensor, target: torch.Tensor, sample_token = None,
     plt.show()
 
 
-def test_dataset_augs(train_df, data_folder):
+def test_dataset_augs(train_df: pd.DataFrame, data_folder: str):
     """Helper to test data augmentations"""
     train_dataset = BEVImageDataset(fold=0, df=train_df, 
                                      debug=True, img_size=IMG_SIZE, 
@@ -370,7 +370,7 @@ def test_dataset_augs(train_df, data_folder):
         plot_img_target(im, target, sample_token, fig_num = count+1)
         
 
-def test_maps_dataset():
+def test_maps_dataset(train_df: pd.DataFrame, data_folder: str):
     """Helper to test dataset with maps"""
     maps_folder = 'C:/Users/New/Documents/Challenges/lyft/input/maps/maps' 
     # dataset
@@ -379,17 +379,17 @@ def test_maps_dataset():
                                     input_dir=data_folder, 
                                     maps_dir=maps_folder,
                                     num_classes = NUM_CLASSES,
-                                    transforms = None)
+                                    transforms = albu_show_transforms)
     im, target, labels, sample_token = train_dataset[6]
     plot_img_target(im, target, sample_token, fig_num = 1)
-    
+    print(f'lables: {labels}')
     im = im.numpy()
     target = target.numpy()
     # sanity check
-    for num in range(0, len(classes)+1):
+    for num in range(0, NUM_CLASSES+1):
         print(np.where(target == num))
                                    
-                                   
+                              
 
 def main():    
     classes = ["car", "motorcycle", "bus", "bicycle", "truck", "pedestrian", "other_vehicle", "animal", "emergency_vehicle"]

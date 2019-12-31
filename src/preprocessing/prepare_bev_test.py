@@ -1,3 +1,7 @@
+"""
+Code adapted from https://www.kaggle.com/gzuidhof/reference-model
+
+"""
 import glob
 import os
 import pathlib

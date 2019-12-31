@@ -1,29 +1,31 @@
+import glob
+import os
+import pathlib
+import sys
 from datetime import datetime
 from functools import partial
-import glob
 from multiprocessing import Pool
-import pathlib
-# Disable multiprocesing for numpy/opencv. We already multiprocess ourselves, this would mean every subprocess produces
-# even more threads which would lead to a lot of context switching, slowing things down a lot.
-import os
-os.environ["OMP_NUM_THREADS"] = "1"
 
-import matplotlib.pyplot as plt
-import pandas as pd
 import cv2
-from PIL import Image
+import matplotlib.pyplot as plt
 import numpy as np
-from tqdm import tqdm, tqdm_notebook
+import pandas as pd
 import scipy
 import scipy.ndimage
 import scipy.special
+from PIL import Image
 from scipy.spatial.transform import Rotation as R
+from tqdm import tqdm, tqdm_notebook
 
+sys.path.append('/home/user/challenges/lyft/lyft_repo/src')
+from configs import BEV_SHAPE, DATA_ROOT, OUTPUT_ROOT
+from datasets.lyft_test_dataset import LyftTestDataset
 from lyft_dataset_sdk.lyftdataset import LyftDataset
-from lyft_dataset_sdk.utils.data_classes import LidarPointCloud, Box, Quaternion
-from lyft_dataset_sdk.utils.geometry_utils import view_points, transform_matrix
-from lyft_test_dataset import LyftTestDataset
-from configs import DATA_ROOT, OUTPUT_ROOT, BEV_SHAPE
+from lyft_dataset_sdk.utils.data_classes import (Box, LidarPointCloud,
+                                                 Quaternion)
+from lyft_dataset_sdk.utils.geometry_utils import transform_matrix, view_points
+
+os.environ["OMP_NUM_THREADS"] = "1" # Disable multiprocesing for numpy/opencv. We already multiprocess ourselves
 os.makedirs(OUTPUT_ROOT, exist_ok=True)
 
 
@@ -388,4 +390,3 @@ def main():
 
 if __name__ == '__main__':   
     main()
-    

@@ -1,31 +1,30 @@
+import glob
+import os
+import sys
 from datetime import datetime
 from functools import partial
-import glob
 from multiprocessing import Pool
 
-# Disable multiprocesing for numpy/opencv. We already multiprocess ourselves, this would mean every subprocess produces
-# even more threads which would lead to a lot of context switching, slowing things down a lot.
-import os
-os.environ["OMP_NUM_THREADS"] = "1"
-
-import matplotlib.pyplot as plt
-import pandas as pd
 import cv2
-from PIL import Image
+import matplotlib.pyplot as plt
 import numpy as np
-from tqdm import tqdm, tqdm_notebook
+import pandas as pd
 import scipy
 import scipy.ndimage
 import scipy.special
-from scipy.spatial.transform import Rotation as R
+from PIL import Image
+from scipy.spatial.transform import Rotation as RS
+from tqdm import tqdm, tqdm_notebook
 
+sys.path.append('/home/user/challenges/lyft/lyft_repo/src')
+from configs import BEV_SHAPE, DATA_ROOT, OUTPUT_ROOT
 from lyft_dataset_sdk.lyftdataset import LyftDataset
-from lyft_dataset_sdk.utils.data_classes import LidarPointCloud, Box, Quaternion
-from lyft_dataset_sdk.utils.geometry_utils import view_points, transform_matrix
+from lyft_dataset_sdk.utils.data_classes import (Box, LidarPointCloud,
+                                                 Quaternion)
+from lyft_dataset_sdk.utils.geometry_utils import transform_matrix, view_points
 
-from configs import DATA_ROOT, OUTPUT_ROOT, BEV_SHAPE
+os.environ["OMP_NUM_THREADS"] = "1"
 os.makedirs(OUTPUT_ROOT, exist_ok=True)
-
 
 
 def create_transformation_matrix_to_voxel_space(shape, voxel_size, offset):
@@ -204,7 +203,9 @@ def plot_bev_and_boxes(sample_token, level5data, size = 0.2, img_size = 768):
 
 
 def get_semantic_map_around_ego(map_mask, ego_pose, voxel_size=0.2, output_shape=(768, 768)):
-
+    """
+    Get map around vehicle, movesit to voxel coordinates and creates an image
+    """
     def crop_image(image: np.array,
                            x_px: int,
                            y_px: int,
@@ -239,7 +240,7 @@ def get_semantic_map_around_ego(map_mask, ego_pose, voxel_size=0.2, output_shape
 
 
 def plot_semantic_map(map_mask, ego_pose):
-    """Plot map"""
+    """Helperto plot map"""
     ego_centric_map = get_semantic_map_around_ego(map_mask, ego_pose, voxel_size=0.4, output_shape=(336,336)) 
     plt.imshow(ego_centric_map)
     plt.show()
@@ -347,6 +348,10 @@ def prepare_data_pool(df, data_folder, bev_shape, voxel_size, z_offset, box_scal
     Args: 
         df: train or val tokens
         data_folder: diractory to save data
+        bev_shape: BEV image shape
+        voxel_size: size of voxels for voxelization
+        z_offset: offset in the vertical direction before voxelization 
+        box_scale: rescale of the bounding boxes projections
     """
     NUM_WORKERS = os.cpu_count() 
     print('Number of CPU: ', NUM_WORKERS)
@@ -422,13 +427,12 @@ def main():
     os.makedirs(validation_data_folder, exist_ok=True)
 
     # test on a single scene
-    #prepare_training_data_for_scene(df.first_sample_token.values[50], 
-    #                                train_data_folder, 
-    #                                level5data, 
-    #                                classes,
-    #                                bev_shape, voxel_size, z_offset, box_scale)
-
-    #test_prepare_training_data(df.first_sample_token.values[50], train_data_folder)
+    prepare_training_data_for_scene(df.first_sample_token.values[50], 
+                                    train_data_folder, 
+                                    level5data, 
+                                    classes,
+                                    bev_shape, voxel_size, z_offset, box_scale)
+    test_prepare_training_data(df.first_sample_token.values[50], train_data_folder)
 
     # get for all scenes
     first_samples = df.first_sample_token.values
@@ -441,13 +445,11 @@ def main():
                                     level5data, 
                                     classes,
                                     bev_shape, voxel_size, z_offset, box_scale)
-
+    # multiprocessing option
     #for df, data_folder in [(train_df, train_data_folder), (validation_df, validation_data_folder)]:
     #    prepare_data_pool(df, data_folder, bev_shape, voxel_size, z_offset, box_scale)
     print('Mission accomplished!')
 
 
-
 if __name__ == '__main__':   
     main()
-    

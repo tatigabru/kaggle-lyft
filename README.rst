@@ -7,76 +7,49 @@ https://www.kaggle.com/c/3d-object-detection-for-autonomous-vehicles/overview
 
 Install
 =======
-
 Use Python 3.6.
 
-Install::
+Install:
     install anaconda
-    create environment using bach create_env.sh
+
+    create environment (use scripts/bash create_env.sh)
 or
     pip install -r requirements.txt
 or 
     use Docker    
-Run
-===
-
-Models used are in models folder. All steps required for submission are in heavily commented ``run-all.sh``
-and ``level2.sh``. Note that ``run-all.sh`` was never run in one step
-(it would take too much time), so may contain errors.
-Most model parameters are in the ``_runs`` folder
-(they come from actual models).
-
-One extra model was used to create pseudolabels which is not used in the final
-solution (``resnext101_32x16d_wsl`` on fold0 with batch size 10,
-instead of ``resnext101_32x8d_wsl`` on the same fold),
-but it's contribution is extremely minor and
-quality is very similar to ``resnext101_32x8d_wsl``.
-
-All run logs and configs (for classification models) are in ``_runs`` folder.
 
 Overview
 ========
-General approach is as follows:
+General approach is the following:
 
-- Dataset is split into 5 folds by scene stratified by cars
-- Class-agnostic bounding boxes are predicted for all characters using an object
-  detection network (with ``resnet152`` backbone pretrained on ImageNet).
-  Out-of-fold predictions are obtained for all 5 folds.
-  This is done in ``kuzushiji.segment`` module.
-- A "classification" model is trained using OOF detection predictions.
-  An extra class ``seg_fp`` (segmentation false-positive) is added
-  for bounding boxes which have low overlap with ground truth boxes,
-  so classification model can correct errors of segmentation model.
-  Classification model is trained on all folds.
-  This is done in ``kuzushiji.classify`` module
-  (``knn``, ``blend`` and language modeling are not used).
-  Models with ``resnet152`` and ``resnext101_32x8d_wsl`` backbones are used,
-  they are trained on large crops containing multiple symbols,
-  using FPN and roi align with a classification head.
-- Pseudolabelling is performed, in OCR terms this is similar to
-  "writer adaptation", although here it is applied to the whole test for simplicity.
-- A second level model is trained on classification predictions,
-  which creates the final submission.
+- Dataset is split into 4 folds by scene stratified by cars
+- Lidar point coulds are voxelized and then projected into the bird-eye-view (BEV) along with bounding boxes 
+- BEV of images and bboxes are used to generade 2D input images and corresponding masks at various resolutions: 768x768, 1024x1024 and 2048x2048 
+- Unet-like architectures with different encoders where used for segmentation. I tried ``resnet152``, ``resnet101``, ``se-resnext101``, ``resnet50``, ``se-resnext50``and some other backbones pretrained on ImageNet.
+- The predicted masks were post-processed with OpenCV libruary to obtain rotated bonding boxes
+- Simple heuristics were used to translate 2D bounding boxes into 3D ones, using ground level, meta data and that fact, that boxes are mostly vertical
+- Mask-RCNN was considered as an alternative for Unet type models (it was too slow and performed worse) 
+- A "classification" model head was added to the Unet-type architechture (did not had enoupg time to experiment with it more)
+- Maps could be also added on top of the image to improvethe accuracy
 
-Why such approach was chosen? There are two other candidate approaches:
 
-- End-to-end model which does detection and classification
-  (e.g. Faster-RCNN). This may be possible with some effort, but here it seems
-  that segmentation is quite easy, while classification is hard, and it's
-  more convenient to tune a classification model alone without worrying
-  about detection, also pipeline is easier and more flexible.
-- A separate detection model, and then a classifier on single-character
-  crops. This is probably the easiest approach to get a reasonable result,
-  and makes it very easy to improve a classification model.
-  Still I felt that using larger crops as inputs should provide better context
-  for the model, so that it can see nearby symbols and would not suffer from
-  not ideal crops.
-  But it could be that classification on character crops can be better.
-
-Next come more details on each stage.
-
-Segmentation
+Dataset
 ------------
+The task required quite a pre-processing. The src/preprocessing containes scripts for BEV images  preparation from the Lidar point clouds for both train and test. 
+
+For simplicity, I uploaded generated BEV images and corresponding masks here: 
+https://www.kaggle.com/blondinka/bev-train-test
+
+Folds
+------------
+The folds are in src/folds/ directory. File src/make_folds.py contains code with several examples of splits with various stratification strategies. I used 4 folds split by scene and stratified by car.
+
+
+
+* augmentations used: scale, minor color augmentations
+  (hue/saturation/value), Albumentations library was used.
+
+ 
 
 Segmentation into characters is done with a Faster-RCNN model with ``resnet152``
 backbone trained with torchvision. Only one class is used, so it does not
@@ -93,8 +66,7 @@ Some details:
   objects) to reduce amount of false positives,
 * it was trained on 512x384 crops, with page height around 1500 px,
   and full pages were used for inference,
-* augmentations used: scale, minor color augmentations
-  (hue/saturation/value), Albumentations library was used.
+
 
 Overall many more improvements are possible here: using mmdetection,
 better models, pre-training on COCO, blending predictions from different folds

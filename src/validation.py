@@ -1,61 +1,59 @@
 import argparse
 import collections
-import pickle
-import random
-import pandas as pd
-from datetime import datetime
-from functools import partial
 import glob
 import logging
+import os
+import pickle
+import random
+import time
+from datetime import datetime
+from functools import partial
 from multiprocessing import Pool
-import matplotlib.pyplot as plt
+
 import cv2
-from PIL import Image
+import matplotlib.pyplot as plt
 import numpy as np
-from tqdm import tqdm, tqdm_notebook
+import pandas as pd
 import scipy
 import scipy.ndimage
 import scipy.special
+from PIL import Image
 from scipy.spatial.transform import Rotation as R
-import time
+from tqdm import tqdm, tqdm_notebook
 
+# extra libruaries
+import segmentation_models_pytorch as smp
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.utils.data
+from configs import IMG_SIZE, NUM_CLASSES, OUTPUT_ROOT
+from datasets.bev_dataset import BEVImageDataset
+from datasets.transforms import (albu_valid_tansforms, crop_d4_transforms,
+                                 tensor_transform, test_transform,
+                                 train_transform)
+# lyft SDK imports
+from lyft_dataset_sdk.lyftdataset import LyftDataset
+from lyft_dataset_sdk.utils.data_classes import (Box, LidarPointCloud,
+                                                 Quaternion)
+from lyft_dataset_sdk.utils.geometry_utils import transform_matrix, view_points
+from models.models import get_unet_model
+from models.unet import UNet
+from pytorch_toolbelt import losses as L
 from torch.optim import lr_scheduler
 from torch.utils.data import DataLoader
 from torchvision import datasets, models, transforms
-# Disable multiprocesing for numpy/opencv. We already multiprocess ourselves, this would mean every subprocess produces
-# even more threads which would lead to a lot of context switching, slowing things down a lot.
-import os
-from pytorch_toolbelt import losses as L
-os.environ["OMP_NUM_THREADS"] = "1"
-
-# lyft SDK imports
-from lyft_dataset_sdk.lyftdataset import LyftDataset
-from lyft_dataset_sdk.utils.data_classes import LidarPointCloud, Box, Quaternion
-from lyft_dataset_sdk.utils.geometry_utils import view_points, transform_matrix
-
-# extra libruaries
-import segmentation_models_pytorch as smp
-from pytorch_toolbelt import losses as L
-
-# current project imports 
+from utilities.iou import iou_numpy
 from utilities.logger import Logger
-from unet import UNet
-from datasets.BEVDataset import BEVImageDataset
-from configs import OUTPUT_ROOT, IMG_SIZE, NUM_CLASSES
-from transforms import (train_transform, test_transform, tensor_transform,
-                        crop_d4_transforms, albu_valid_tansforms)
+from utilities.utils import set_seed
 
-from iou import iou_numpy
-
-from train import set_seed, get_unet_model
+os.environ["OMP_NUM_THREADS"] = "1"
 
 
 def visualize_validation(model, dataloader_valid, class_weights, epoch: int, 
              predictions_dir: str, save_oof=True):
+    """
+    Plot predictions at some iteration """         
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     print(device)    
     with torch.no_grad():
@@ -76,6 +74,7 @@ def visualize_validation(model, dataloader_valid, class_weights, epoch: int,
 
 
 def validate_jaccard(model: nn.Module, dataloader_valid, class_weights):
+    """Calculate jaccard for validation """
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     print("Validation on hold-out....")
     with torch.no_grad():
@@ -109,6 +108,7 @@ def cuda(x):
     return x.cuda(async=True) if torch.cuda.is_available() else x
 
 def get_jaccard(y_true, y_pred):
+    """Jaccard loss """
     y_pred = torch.nn.Softmax2d()
     epsilon = 1e-15
     intersection = (y_pred * y_true).sum(dim=-2).sum(dim=-1).sum(dim = -1)
@@ -133,4 +133,3 @@ def iou_numpy(outputs: np.array, labels: np.array, num_classes = 9):
     #thresholded = np.ceil(np.clip(20 * (iou - 0.5), 0, 10)) / 10
     
     return np.array(ious), np.nanmean(ious) 
-

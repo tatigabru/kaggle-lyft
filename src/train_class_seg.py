@@ -1,71 +1,57 @@
 import argparse
 import collections
+import glob
+import os
 import pickle
 import random
-import pandas as pd
-#from skimage import transforms
+import time
 from datetime import datetime
 from functools import partial
-import glob
 from multiprocessing import Pool
-import matplotlib.pyplot as plt
+
 import cv2
-from PIL import Image
+import matplotlib.pyplot as plt
 import numpy as np
-from tqdm import tqdm, tqdm_notebook
+import pandas as pd
 import scipy
 import scipy.ndimage
 import scipy.special
+from PIL import Image
 from scipy.spatial.transform import Rotation as R
-import time
+from tqdm import tqdm, tqdm_notebook
 
+# extra libruaries
+import segmentation_models_pytorch as smp
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.utils.data
+from configs import IMG_SIZE, NUM_CLASSES, OUTPUT_ROOT
+# current project imports 
+from datasets.biv_dataset import BEVImageDataset, BEVLabelsDataset
+from datasets.transforms import (albu_valid_tansforms, crop_d4_transforms,
+                                 tensor_transform, test_transform,
+                                 train_transform)
+# lyft SDK imports
+from lyft_dataset_sdk.lyftdataset import LyftDataset
+from lyft_dataset_sdk.utils.data_classes import (Box, LidarPointCloud,
+                                                 Quaternion)
+from lyft_dataset_sdk.utils.geometry_utils import transform_matrix, view_points
+from models.models import (
+    get_fpn_model, get_fpn_twohead_model, get_smp_model, get_unet_model,
+    get_unet_twohead_model)
+from pytorch_toolbelt import losses as L
 from torch import optim
+from torch.nn import BCEWithLogitsLoss, CrossEntropyLoss
 from torch.optim import lr_scheduler
 from torch.utils.data import DataLoader
 from torchvision import datasets, models, transforms
-# Disable multiprocesing for numpy/opencv. We already multiprocess ourselves, this would mean every subprocess produces
-# even more threads which would lead to a lot of context switching, slowing things down a lot.
-import os
-os.environ["OMP_NUM_THREADS"] = "1"
-
-# lyft SDK imports
-from lyft_dataset_sdk.lyftdataset import LyftDataset
-from lyft_dataset_sdk.utils.data_classes import LidarPointCloud, Box, Quaternion
-from lyft_dataset_sdk.utils.geometry_utils import view_points, transform_matrix
-
-# extra libruaries
-import segmentation_models_pytorch as smp
-from pytorch_toolbelt import losses as L
-from torch.nn import BCEWithLogitsLoss, CrossEntropyLoss
-# possible losses
-#loss = L.JointLoss(L.FocalLoss(), 1.0, L.LovaszLoss(), 0.5)
-#loss = L.JointLoss(L.FocalLoss(), 1.0, L.JaccardLoss('multiclass'), 0.5)
-#loss = L.JointLoss(first=CrossEntropyLoss(), second=L.JaccardLoss('multiclass'), first_weight=1.0,
-#                   second_weight=0.5)
-
-# current project imports 
-from iou import iou_numpy
+from utilities.iou import iou_numpy
 from utilities.logger import Logger
 from utilities.radam import RAdam
-from datasets.BEVDataset import BEVImageDataset, BEVLabelsDataset
-from configs import OUTPUT_ROOT, IMG_SIZE, NUM_CLASSES
-from transforms import (train_transform, test_transform, tensor_transform,
-                        crop_d4_transforms, albu_valid_tansforms)
-from models import get_unet_model, get_fpn_model, get_unet_twohead_model, get_fpn_twohead_model                        
+from utilities.utils import set_seed
 
-
-def set_seed(seed=1234):
-    random.seed(seed)
-    os.environ["PYTHONHASHSEED"] = str(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed_all(seed)
-        torch.backends.cudnn.deterministic = True
+os.environ["OMP_NUM_THREADS"] = "1"
 
 
 def load_model_optim(model, optimizer, checkpoint_path: str):
@@ -95,16 +81,17 @@ def load_model(model, checkpoint_path: str):
  
  
 def train(model, model_name: str, data_folder: str, fold: int, debug=False, img_size=IMG_SIZE,
-          epochs=15, batch_size = 8, num_workers=4, resume_weights='', resume_epoch=0):
+          learning_rate=1e-3, epochs=15, batch_size = 8, num_workers=4, resume_weights='', resume_epoch=0):
     """
     Model training
     
-    Input: 
+    Args: 
         model : PyTorch model
         model_name : string name for model for checkpoints saving
         fold: evaluation fold number, 0-3
         debug: if True, runs the debugging on few images 
         img_size: size of images for training (for pregressive learning)
+        learning_rate: initial learning rate
         epochs: number of epochs to train
         batch_size: number of images in batch
         num_workers: number of workers available
@@ -150,7 +137,6 @@ def train(model, model_name: str, data_folder: str, fold: int, debug=False, img_
     print('valid samples: ', valid_df.head())
     
     # optimizer and schedulers
-    learning_rate = 1e-3
     print(f'initial learning rate: {learning_rate}')
     #optimizer = optim.Adam(model.parameters(), lr=learning_rate)
     optimizer = RAdam(model.parameters(), lr=learning_rate)
@@ -351,27 +337,30 @@ def visualize_predictions(input_image, prediction, target, predictions_dir: str,
 
 
 def main():
-                
-    set_seed(seed=1234)
+    parser = argparse.ArgumentParser()                                
+    arg = parser.add_argument    
+    arg('--model_name', type=str, default='mask_512', help='String model name from models dictionary')
+    arg('--seed', type=int, default=1234, help='Random seed')
+    arg('--fold', type=int, default=0, help='Validation fold')
+    arg('--weights_dir', type=str, default='', help='Directory for loading model weights')
+    arg('--epochs', type=int, default=12, help='Current epoch')
+    arg('--lr', type=float, default=1e-3, help='Initial learning rate')
+    arg('--debug', type=bool, default=False, help='If the debugging mode')
+    args = parser.parse_args() 
 
+    set_seed(args.seed)
     classes = ["car", "motorcycle", "bus", "bicycle", "truck", "pedestrian", "other_vehicle", "animal", "emergency_vehicle"]
-
-    model = get_smp_model(encoder='resnet50', num_classes=len(classes)+1)
     model = get_unet_twohead_model(encoder='resnet18', num_classes=len(classes)+1)
     
     data_folder = os.path.join(OUTPUT_ROOT, "bev_data")
 
     checkpoint= f'{OUTPUT_ROOT}/checkpoints/unet_resnet152_384_fold_2/unet_resnet152_384_fold_2_epoch_6.pth' 
-    # fold 0, 768 epochs 46, 50 
-
-    train(model, model_name='unet_cls_resnet18_512', data_folder=data_folder, 
-          fold=2, debug=True, img_size=IMG_SIZE,
-          epochs=30, batch_size=32, num_workers=4, resume_weights='', resume_epoch=0)
-
+    
+    train(model, model_name=args.model_name, data_folder=data_folder, 
+          fold=args.fold, debug=args.debug, img_size=IMG_SIZE, learning_rate= args.lr,
+          epochs=args.epochs, batch_size=32, num_workers=4, resume_weights='', resume_epoch=0)
 
 
 
 if __name__ == "__main__":
     main()
-
-    
